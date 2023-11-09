@@ -16,6 +16,11 @@ public class ShootArrow : MonoBehaviour
 
     [SerializeField] Transform redBallThing;
     [SerializeField] Transform handLookAtSphere;
+    [SerializeField] AnimationCurve bowPullbackPowerCurve;
+
+    [SerializeField] float destroyTime = 6f;
+
+    WaitForSeconds waitForDestroyTime;
 
     XRIDefaultInputActions defaultInputActions;
     
@@ -56,15 +61,36 @@ public class ShootArrow : MonoBehaviour
         }
     }
 
-    void Shoot()
+    void Shoot(float clampValue)
     {
-        
-
         GameObject tempArrow = Instantiate(arrowPrefab, arrowPlacement.transform.position, handLookAtSphere.rotation);
         Rigidbody rBody = tempArrow.GetComponent<Rigidbody>();
-        MassHolder massHolder = tempArrow.GetComponent<MassHolder>();
-        rBody.centerOfMass = massHolder.com.position;
-        rBody.AddForce(tempArrow.transform.forward * (forceAmount * 30), ForceMode.Impulse);
+        //MassHolder massHolder = tempArrow.GetComponent<MassHolder>();
+        //rBody.centerOfMass = massHolder.com.position;
+        rBody.AddForce(CalculateSlingshotProjectileVelocity(), ForceMode.Impulse);
+
+        //Destroys the arrow after an amount of time
+        DestroyAfterTime(tempArrow);
+
+
+    }
+
+    private Vector3 CalculateSlingshotProjectileVelocity()
+    {
+        //get vector and distance
+        Vector3 slingshotPullbackVector = redBallThing.position - rightHandBall.position;
+        float pullbackDist = Vector3.Distance(redBallThing.position, rightHandBall.position);
+
+        //get the percent of the pullback distance
+        float percent = Mathf.InverseLerp(0.1f, 1.00f, pullbackDist);
+        //apply the percent to the curve
+        float powerByCurve = Mathf.Lerp(6f, 100f, bowPullbackPowerCurve.Evaluate(percent));
+
+        //cap power
+        if (powerByCurve > 75f)
+            powerByCurve = 75f;
+
+        return Vector3.ClampMagnitude(slingshotPullbackVector, 2f) * powerByCurve;
     }
 
     IEnumerator ReadyToShoot()
@@ -88,15 +114,20 @@ public class ShootArrow : MonoBehaviour
             yield return null;
         }
 
+        /*
         var heading = rightHandPosition.ReadValue<Vector3>() - arrowPlacement.position;
         var distance = heading.magnitude;
         var direction = heading / distance;
         arrowPlacement.localEulerAngles = direction;
 
-        forceAmount = distance;
-        print(forceAmount * 10);
+        forceAmount = distance - 0.22f;
+        */
 
-        Shoot();
+        //print(distance);
+        //float clampedValue = Mathf.Clamp(forceAmount, 0, 100);
+        //print(clampedValue);
+
+        Shoot(0);
 
         lineR.useWorldSpace = false;
         lineR.SetPosition(0, new Vector3(0, 0, 0));
@@ -107,6 +138,17 @@ public class ShootArrow : MonoBehaviour
 
         notTriggered = true;
 
+
         yield return null;
+    }
+
+    IEnumerator DestroyAfterTime(GameObject arrowObj)
+    {
+        yield return waitForDestroyTime;
+        if(arrowObj.activeInHierarchy)
+        {
+            Destroy(arrowObj);
+        }
+
     }
 }
